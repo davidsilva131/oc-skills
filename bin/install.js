@@ -1,32 +1,31 @@
 #!/usr/bin/env node
 'use strict';
 
-const fs = require('node:fs');
-const path = require('node:path');
-const os = require('node:os');
+var fs = require('node:fs');
+var path = require('node:path');
+var os = require('node:os');
 
 function getTargetDir() {
-  const home = os.homedir();
+  var home = os.homedir();
   if (process.platform === 'win32') {
-    const appData = process.env.USERPROFILE || home;
-    return path.join(appData, '.config', 'opencode', 'skills');
+    return path.join(process.env.USERPROFILE || home, '.config', 'opencode', 'skills');
   }
   return path.join(home, '.config', 'opencode', 'skills');
 }
 
 function getSourceDir() {
-  const scriptDir = path.dirname(__filename);
-  return path.resolve(scriptDir, '..', 'skills');
+  return path.resolve(path.dirname(process.argv[1]), '..', 'skills');
 }
 
 function copyDirSync(src, dest) {
   if (!fs.existsSync(dest)) {
     fs.mkdirSync(dest, { recursive: true });
   }
-  const entries = fs.readdirSync(src, { withFileTypes: true });
-  for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
+  var entries = fs.readdirSync(src, { withFileTypes: true });
+  for (var i = 0; i < entries.length; i++) {
+    var entry = entries[i];
+    var srcPath = path.join(src, entry.name);
+    var destPath = path.join(dest, entry.name);
     if (entry.isDirectory()) {
       copyDirSync(srcPath, destPath);
     } else {
@@ -36,24 +35,26 @@ function copyDirSync(src, dest) {
 }
 
 function validatePath(base, target) {
-  const resolved = path.resolve(base, target);
-  if (!resolved.startsWith(base)) {
-    throw new Error('Path traversal detected');
+  var resolved = path.resolve(base, target);
+  if (resolved.indexOf(base) !== 0) {
+    throw new Error('Path traversal detected: ' + target);
   }
   return resolved;
 }
 
 (function main() {
-  const targetDir = getTargetDir();
-  const sourceDir = getSourceDir();
+  var args = process.argv.slice(2);
+  var dryRun = args.indexOf('--dry-run') !== -1;
+
+  var targetDir = getTargetDir();
+  var sourceDir = getSourceDir();
 
   if (!fs.existsSync(sourceDir)) {
     console.error('Error: skills directory not found at ' + sourceDir);
     process.exit(1);
   }
 
-  const validateSource = path.resolve(sourceDir);
-  const skills = fs.readdirSync(validateSource, { withFileTypes: true })
+  var skills = fs.readdirSync(sourceDir, { withFileTypes: true })
     .filter(function (entry) { return entry.isDirectory(); });
 
   if (skills.length === 0) {
@@ -62,29 +63,54 @@ function validatePath(base, target) {
   }
 
   if (!fs.existsSync(targetDir)) {
-    fs.mkdirSync(targetDir, { recursive: true });
-    console.log('Created: ' + targetDir);
+    if (dryRun) {
+      console.log('Would create: ' + targetDir);
+    } else {
+      fs.mkdirSync(targetDir, { recursive: true });
+      console.log('Created: ' + targetDir);
+    }
   }
 
-  for (const skill of skills) {
-    const skillName = skill.name;
-    const srcPath = path.join(validateSource, skillName);
-    const destPath = path.join(targetDir, skillName);
+  var installed = 0;
+  var updated = 0;
+  var skipped = 0;
 
-    validatePath(validateSource, skillName);
+  for (var i = 0; i < skills.length; i++) {
+    var skillName = skills[i].name;
+    var srcPath = path.join(sourceDir, skillName);
+    var destPath = path.join(targetDir, skillName);
+
+    validatePath(sourceDir, skillName);
     validatePath(targetDir, skillName);
 
     if (fs.existsSync(destPath)) {
-      console.log('Exists: ' + skillName + ' (skipped)');
-      continue;
+      if (dryRun) {
+        console.log('Would update: ' + skillName);
+        updated++;
+      } else {
+        fs.rmSync(destPath, { recursive: true, force: true });
+        copyDirSync(srcPath, destPath);
+        console.log('Updated: ' + skillName);
+        updated++;
+      }
+    } else {
+      if (dryRun) {
+        console.log('Would install: ' + skillName);
+        installed++;
+      } else {
+        copyDirSync(srcPath, destPath);
+        console.log('Installed: ' + skillName);
+        installed++;
+      }
     }
-
-    copyDirSync(srcPath, destPath);
-    console.log('Installed: ' + skillName);
   }
 
-  var count = skills.length;
   console.log('');
-  console.log('Done: ' + count + ' skills installed to ' + targetDir);
-  console.log('OpenCode will auto-discover them on next session.');
+  if (dryRun) {
+    console.log('Dry run: ' + installed + ' would install, ' + updated + ' would update, ' + skills.length + ' total');
+  } else {
+    console.log('Done: ' + installed + ' installed, ' + updated + ' updated, ' + skills.length + ' total');
+    console.log('Skills installed to: ' + targetDir);
+    console.log('OpenCode will auto-discover them on next session.');
+  }
 })();
