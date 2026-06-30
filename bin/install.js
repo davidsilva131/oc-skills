@@ -17,6 +17,10 @@ function getSourceDir() {
   return path.resolve(path.dirname(process.argv[1]), '..', 'skills');
 }
 
+function isBucketDir(name) {
+  return ['engineering', 'productivity', 'design', 'misc', 'personal', 'in-progress'].includes(name);
+}
+
 function copyDirSync(src, dest) {
   if (!fs.existsSync(dest)) {
     fs.mkdirSync(dest, { recursive: true });
@@ -42,6 +46,30 @@ function validatePath(base, target) {
   return resolved;
 }
 
+function findSkillDirs(sourceDir) {
+  var skills = [];
+  var entries = fs.readdirSync(sourceDir, { withFileTypes: true });
+
+  for (var i = 0; i < entries.length; i++) {
+    var entry = entries[i];
+    if (!entry.isDirectory()) continue;
+
+    if (isBucketDir(entry.name)) {
+      var bucketPath = path.join(sourceDir, entry.name);
+      var bucketEntries = fs.readdirSync(bucketPath, { withFileTypes: true });
+      for (var j = 0; j < bucketEntries.length; j++) {
+        var be = bucketEntries[j];
+        if (be.isDirectory()) {
+          skills.push({ name: be.name, src: path.join(bucketPath, be.name) });
+        }
+      }
+    } else {
+      skills.push({ name: entry.name, src: path.join(sourceDir, entry.name) });
+    }
+  }
+  return skills;
+}
+
 (function main() {
   var args = process.argv.slice(2);
   var dryRun = args.indexOf('--dry-run') !== -1;
@@ -54,8 +82,7 @@ function validatePath(base, target) {
     process.exit(1);
   }
 
-  var skills = fs.readdirSync(sourceDir, { withFileTypes: true })
-    .filter(function (entry) { return entry.isDirectory(); });
+  var skills = findSkillDirs(sourceDir);
 
   if (skills.length === 0) {
     console.error('Error: no skill directories found in ' + sourceDir);
@@ -77,7 +104,7 @@ function validatePath(base, target) {
 
   for (var i = 0; i < skills.length; i++) {
     var skillName = skills[i].name;
-    var srcPath = path.join(sourceDir, skillName);
+    var srcPath = skills[i].src;
     var destPath = path.join(targetDir, skillName);
 
     validatePath(sourceDir, skillName);
