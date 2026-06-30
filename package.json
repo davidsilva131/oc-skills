@@ -1,0 +1,26 @@
+{
+  "name": "@davidsilva131/oc-skills",
+  "version": "1.0.0",
+  "description": "Skills for opencode — engineering best practices, always available",
+  "bin": {
+    "oc-skills": "./bin/install.js"
+  },
+  "files": [
+    "skills/",
+    "bin/",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "pnpm@10.10.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davidsilva131/oc-skills.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
